@@ -22,7 +22,7 @@ ecdsa_signingkey = SigningKey.generate()
 valid_private_key = False
 while not valid_private_key:
     my_secret = 1 #util.randrange(ecdsa.generator_secp256k1.order())
-    my_key = Key(secret_exponent=my_secret, is_compressed=True) # is public key compressed?
+    my_key = Key(secret_exponent=my_secret, is_compressed=True, netcode='BTC') # TODO try testnet3(XNT), regtest(XRT)
     privkey_hex = b2h(encoding.to_bytes_32(my_key.secret_exponent()))
     assert(len(privkey_hex) == 64)
     #decoded_private_key = encoding.to_long(256, lambda v: v, iterbytes(bitcoin.core.lx(privkey_hex)))
