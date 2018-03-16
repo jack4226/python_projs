@@ -13,8 +13,11 @@ from pycoin.key import Key
 from pycoin import encoding
 from pycoin.intbytes import iterbytes
 from pycoin.serialize import b2h, h2b
+from pycoin.networks import registry
 
-bitcoin.SelectParams('regtest')
+import pprint
+
+#bitcoin.SelectParams('regtest')
 
 ecdsa_signingkey = SigningKey.generate()
 
@@ -22,47 +25,58 @@ ecdsa_signingkey = SigningKey.generate()
 valid_private_key = False
 while not valid_private_key:
     my_secret = 1 #util.randrange(ecdsa.generator_secp256k1.order())
-    my_key = Key(secret_exponent=my_secret, is_compressed=True, netcode='BTC') # TODO try testnet3(XNT), regtest(XRT)
-    privkey_hex = b2h(encoding.to_bytes_32(my_key.secret_exponent()))
-    assert(len(privkey_hex) == 64)
-    #decoded_private_key = encoding.to_long(256, lambda v: v, iterbytes(bitcoin.core.lx(privkey_hex)))
     valid_private_key = 0 < my_secret < ecdsa.generator_secp256k1.order()
 
 print("")
 my_prng = util.PRNG(util.randrange(ecdsa.generator_secp256k1.order()))
-print("PRNG 32 bytes: ", b2h(my_prng.__call__(32)))
+print("PRNG (random generator) 32 bytes: ", b2h(my_prng.__call__(32)))
 
-print("pycoin.key.Key example")
+my_netcode = "BTC" # mainnet: BTC, testnet3: XTN
 
-print("Private Key (hex): ", privkey_hex)
+my_key = Key(secret_exponent=my_secret, is_compressed=True, netcode=my_netcode)
+## netcode list: pycoin.networks.all.py
+
+pp = pprint.PrettyPrinter(indent=2)
+my_network = registry.network_for_netcode(my_netcode)
+my_addr_prefix = registry._lookup(my_netcode, "address")
+getattr(my_network, "address")
+pp.pprint(my_network.__dict__)
+pprint.pprint(my_network.__dict__.keys(), width=60, depth=2)
+
+privkey_hex = b2h(encoding.to_bytes_32(my_key.secret_exponent()))
+assert(len(privkey_hex) == 64)
+
+print("\npycoin.key.Key example - ", my_netcode)
+
 print("Private Key (dec): ", eval('0x' + privkey_hex))
+print("Private Key (hex): ", privkey_hex)
+privkey_bytes = unhexlify(privkey_hex)
+# use CBitcoinSecret to compress private key
+btc_secret = CBitcoinSecret.from_secret_bytes(privkey_bytes, True)
+print("     compressed: ", hexlify(btc_secret.to_bytes()))
+assert(btc_secret.is_compressed == True)
+assert(bitcoin.core.b2x(btc_secret.to_bytes()) == (privkey_hex + '01'))
 
 print("Private Key   WIF: ", my_key.wif())
 print("     uncompressed: ", my_key.wif(use_uncompressed=True))
 
-privkey_bytes = unhexlify(privkey_hex)
 print("Privkey hashed base58: ", encoding.b2a_hashed_base58(privkey_bytes))
 
-# use CBitcoinSecret to compress private key
-btc_secret = CBitcoinSecret.from_secret_bytes(privkey_bytes, True)
-print("Privkey hex compressed: ", hexlify(btc_secret.to_bytes()))
-assert(btc_secret.is_compressed == True)
-assert(bitcoin.core.b2x(btc_secret.to_bytes()) == (privkey_hex + '01'))
 
-
+print()
 ## Public key and address
 public_key = my_key.public_pair()
-print()
 (public_key_x, public_key_y) = public_key
+
+print("Public Key Pair: ", public_key)
+print("     x as hex: ", hex(public_key[0]))
+print("     y as hex: ", hex(public_key[1]))
+
 #compressed_indicator_1 = '02' if (public_key_y % 2) == 0 else '03'
 compressed_indicator = True if (public_key_y % 2) == 0 else False
 print("Public key y parity: ", 'even' if compressed_indicator else 'odd')
 assert(compressed_indicator != my_key._use_uncompressed)
 
-#print("Is public key compressed? ", 'False' if my_key._use_uncompressed() else 'True')
-
-print("Public Key Pair: ", public_key)
-print()
 print("Public key     hex: ", my_key.sec_as_hex())
 print("      uncompressed: ", my_key.sec_as_hex(use_uncompressed=True))
 assert(my_key.sec_as_hex() == bitcoin.core.b2x(my_key.sec()))
@@ -71,14 +85,14 @@ print("Public key hash160: ", b2h(my_key.hash160()))
 print("      uncompressed: ", b2h(my_key.hash160(use_uncompressed=True)))
 
 #print("Bitcoin Address   : ", my_key.address())
-addr_compressed = encoding.public_pair_to_bitcoin_address(public_key, True)
-addr_uncompressed = encoding.public_pair_to_bitcoin_address(public_key, False)
+addr_compressed = encoding.public_pair_to_bitcoin_address(public_key, True, my_addr_prefix)
+addr_uncompressed = encoding.public_pair_to_bitcoin_address(public_key, False, my_addr_prefix)
 
 print("Bitcoin    Address: ", addr_compressed)
 print("      uncompressed: ", addr_uncompressed)
 
-assert(encoding.is_valid_bitcoin_address(addr_compressed))
-assert(encoding.is_valid_bitcoin_address(addr_uncompressed))
+assert(encoding.is_valid_bitcoin_address(addr_compressed, my_addr_prefix))
+assert(encoding.is_valid_bitcoin_address(addr_uncompressed, my_addr_prefix))
 assert(my_key.address() == addr_compressed)
 
 pubkey_bytes = encoding.public_pair_to_sec(public_key, True);
