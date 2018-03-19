@@ -19,6 +19,8 @@ from bitcoin.core.scripteval import VerifyScript, SCRIPT_VERIFY_P2SH
 from pycoin import encoding
 from base_script import MySignatureHash, MyCScript
 
+from pycoin.tx.Tx import Tx
+
 my_netcode = "testnet" #"mainnet"
 bitcoin.SelectParams(my_netcode)
 
@@ -33,12 +35,15 @@ seckey = CBitcoinSecret.from_secret_bytes(h)
 cec_key = CECKey()
 cec_key.set_secretbytes(h)
 
-print("Secret key hex: ", seckey.hex());
+print("Secret key  hex: ", seckey.hex());
+btc_addr = encoding.public_pair_to_bitcoin_address(cec_key.get_pubkey(), address_prefix=my_pubaddr_prefix)
+print("Bitcoin address: ", btc_addr)
 
-# Create a redeemScript. Similar to a scriptPubKey the redeemScript must be
-# satisfied for the funds to be spent.
+# Create a redeemScript, with public key and check signature op code (0xac)
+# Similar to a scriptPubKey the redeemScript must be satisfied for the funds to be spent.
 txin_redeemScript = CScript([seckey.pub, OP_CHECKSIG])
-print("Public key hex: ", seckey.pub.hex())
+print("Public key of address #", seckey.pub.hex())
+# 0x21 + secret.pub + OP_CHECKSIG (0x87)
 print("Tx-in Redeem Script: ", b2x(txin_redeemScript))
 
 # Create the magic P2SH scriptPubKey format from that redeemScript. You should
@@ -46,12 +51,14 @@ print("Tx-in Redeem Script: ", b2x(txin_redeemScript))
 # understand what's happening, as well as read BIP16:
 # https://github.com/bitcoin/bips/blob/master/bip-0016.mediawiki
 txin_scriptPubKey = txin_redeemScript.to_p2sh_scriptPubKey()
-print("Tx-in scriptPubKey: ", b2x(txin_scriptPubKey))
+print("Redeem script hash160 #", b2x(bitcoin.core.Hash160(txin_redeemScript)))
+# OP_HASH169 (0xa9) + 0x14 + hash160(txin_redeemscript) + OP_EQUALS (0x87)
+print("Tx-in scriptPubKey:", b2x(txin_scriptPubKey))
 
 # Convert the P2SH scriptPubKey to a base58 Bitcoin address and print it.
 # You'll need to send some funds to it to create a txout to spend.
 txin_p2sh_address = CBitcoinAddress.from_scriptPubKey(txin_scriptPubKey)
-print('Pay to script address: ', str(txin_p2sh_address))
+print('Tx-in script address: ', str(txin_p2sh_address))
 assert(isinstance(txin_p2sh_address, bitcoin.wallet.P2SHBitcoinAddress))
 
 # Same as the txid:vout the createrawtransaction RPC call requires
@@ -69,9 +76,17 @@ txin = CMutableTxIn(COutPoint(txid, vout))
 
 # Create the txout. This time we create the scriptPubKey from a Bitcoin
 # address.
-btc_addr = encoding.public_pair_to_bitcoin_address(cec_key.get_pubkey(), address_prefix=my_pubaddr_prefix)
+pay_to_h = hashlib.sha256(b'pay to correct horse battery staple').digest()
+pay_to_seckey = CBitcoinSecret.from_secret_bytes(pay_to_h)
+pay_to_cec_key = CECKey()
+pay_to_cec_key.set_secretbytes(pay_to_h)
+to_btc_addr = encoding.public_pair_to_bitcoin_address(pay_to_cec_key.get_pubkey(), address_prefix=my_pubaddr_prefix)
+
+print()
+print("Pay this Bitcoin address: ", to_btc_addr)
 #txout = CMutableTxOut(0.0005*COIN, CBitcoinAddress('323uf9MgLaSn9T7vDaK1cGAZ2qpvYUuqSp').to_scriptPubKey())
-txout = CMutableTxOut(0.0005*COIN, CBitcoinAddress(btc_addr).to_scriptPubKey())
+txout = CMutableTxOut(0.0005*COIN, CBitcoinAddress(to_btc_addr).to_scriptPubKey())
+print("     pay to scriptPubKey: ", b2x(CBitcoinAddress(to_btc_addr).to_scriptPubKey()))
 
 # Create the unsigned transaction.
 tx = CMutableTransaction([txin], [txout])
@@ -102,5 +117,8 @@ VerifyScript(txin.scriptSig, txin_scriptPubKey, tx, 0, (SCRIPT_VERIFY_P2SH,))
 
 # Done! Print the transaction to standard output with the bytes-to-hex
 # function.
-print(b2x(tx.serialize()))
+print("Transaction:\n", b2x(tx.serialize()))
+
+pycoin_tx = Tx.from_bin(tx.serialize())
+print("Pycoin tx:\n", pycoin_tx.__repr__())
 
