@@ -48,7 +48,8 @@ assert(len(privkey_hex) == 64)
 
 print("\npycoin.key.Key example - ", my_netcode)
 
-print("Private Key (dec): ", eval('0x' + privkey_hex))
+#print("Private Key (dec): ", eval('0x' + privkey_hex))
+print("Private Key (dec): ", int(privkey_hex, 16))
 print("Private Key (hex): ", privkey_hex)
 privkey_bytes = unhexlify(privkey_hex)
 # use CBitcoinSecret to compress private key
