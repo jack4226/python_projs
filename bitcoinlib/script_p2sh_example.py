@@ -23,7 +23,8 @@ from base_script import MySignatureHash, MyCScript
 
 from pycoin.tx.Tx import Tx
 
-my_netcode = "testnet" #"mainnet"
+my_netcode = "testnet"
+#my_netcode = "mainnet"
 bitcoin.SelectParams(my_netcode)
 
 my_params = bitcoin.params
